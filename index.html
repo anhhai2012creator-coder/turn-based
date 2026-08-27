@@ -52,15 +52,13 @@
             <section id="screen-campaign" class="screen">
                 <h1 class="screen-title">HỆ THỐNG ẢI</h1>
                 <div class="campaign-container">
-                    <h2>Chương 1</h2>
-                    <div class="stage-list">
-                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 1</button>
-                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 2</button>
-                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 3</button>
-                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 4</button>
-                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 5</button>
-                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 6</button>
-                        <button class="stage-btn boss" onclick="alert('Chưa hoạt động')">Ải 7 (BOSS)</button>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <button class="action-btn" onclick="changeChapter(-1)">&#8592;</button>
+                        <h2 id="chapter-title">Chương 1</h2>
+                        <button class="action-btn" onclick="changeChapter(1)">&#8594;</button>
+                    </div>
+                    <div class="stage-list" id="stage-list">
+                        <!-- Rendered by JS -->
                     </div>
                 </div>
             </section>
@@ -97,6 +95,15 @@
                                 <div><b>Gói 500 VPNC</b></div>
                                 <button class="action-btn" onclick="buySaleVpnc()" style="background:#e91e63; padding:5px 10px; font-size:0.9em;">Mua <span id="sale-vpnc-price">500</span> KC</button>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="event-banner" style="background:#fce4ec; border:2px solid #e91e63; padding:15px; margin-bottom:15px; border-radius:10px;">
+                        <h2 style="color:#c2185b; margin-bottom:10px;">🤝 Mời Lữ Khách Đồng Hành</h2>
+                        <p style="font-size:0.8em; margin-bottom:10px;">Thời gian: 27/8/2026 - 27/8/2027<br>Mời 1 tướng bạn chưa có (Lv 99). Tồn tại trong 5 ngày.</p>
+                        <div id="guest-event-content">
+                            <select id="guest-select" style="padding:10px; width:100%; margin-bottom:10px;"></select>
+                            <button class="action-btn" onclick="inviteGuest()" style="background:#c2185b; width:100%;">Mời Tướng Này</button>
                         </div>
                     </div>
 
@@ -138,9 +145,14 @@
             <!-- Danh Sách -->
             <section id="screen-roster" class="screen">
                 <h1 class="screen-title">DANH SÁCH & ĐỘI HÌNH</h1>
+                <button class="action-btn" onclick="openEffectModal()" style="margin-bottom: 10px; width:100%; background:#8e44ad;"><i class="fas fa-book"></i> TỪ ĐIỂN HIỆU ỨNG</button>
+                <div class="tabs" style="margin-bottom:10px;">
+                    <button class="tab-btn active" id="tab-owned" onclick="switchRosterTab('owned')">Tướng Sở Hữu</button>
+                    <button class="tab-btn" id="tab-unowned" onclick="switchRosterTab('unowned')">Chưa Sở Hữu</button>
+                </div>
                 <div class="roster-layout">
-                    <div class="formation-panel">
-                        <h2>Đội Hình (Kéo thả hoặc chọn)</h2>
+                    <div class="formation-panel" id="formation-panel-container">
+                        <h2>Đội Hình (Chọn vị trí -> Chọn tướng)</h2>
                         <div class="formation-slots">
                             <div class="f-slot" id="slot-1" onclick="selectSlot(1)">
                                 <div class="slot-label">Vị trí 1</div>
@@ -157,8 +169,19 @@
                         </div>
                     </div>
                     <div class="char-list-panel">
-                        <h2>Nhân vật sở hữu</h2>
+                        <h2 id="char-list-title">Danh sách nhân vật</h2>
                         <div id="owned-chars" class="char-grid">
+                            <!-- Render by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Từ điển Hiệu ứng -->
+                <div id="effect-modal" class="modal">
+                    <div class="modal-content" style="max-height: 80vh; overflow-y: auto;">
+                        <span class="close-btn" onclick="closeModal('effect-modal')">&times;</span>
+                        <h2 style="color:var(--primary-color)">TỪ ĐIỂN HIỆU ỨNG</h2>
+                        <div id="effect-list" style="margin-top:15px; font-size:0.9em; text-align:left;">
                             <!-- Render by JS -->
                         </div>
                     </div>
@@ -170,7 +193,7 @@
                         <span class="close-btn" onclick="closeModal('char-modal')">&times;</span>
                         <h2 id="modal-char-name">Name</h2>
                         <div class="char-details">
-                            <p>Level: <span id="modal-char-lv"></span> (Max 150)</p>
+                            <p>Level: <span id="modal-char-lv"></span> (Max 350)</p>
                             <p>HP: <span id="modal-char-hp"></span></p>
                             <p>ATK: <span id="modal-char-atk"></span></p>
                             <p>DEF: <span id="modal-char-def"></span></p>
