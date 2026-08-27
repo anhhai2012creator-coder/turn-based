@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Auto Battler Game</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Top bar: Resources -->
+        <header id="top-bar">
+            <div class="resource-item" title="Kim cương">
+                <i class="fas fa-gem" style="color: #00d2ff;"></i>
+                <span id="res-diamond">0</span>
+            </div>
+            <div class="resource-item" title="Xu">
+                <i class="fas fa-coins" style="color: #ffd700;"></i>
+                <span id="res-coin">0</span>
+            </div>
+            <div class="resource-item" title="Vật Phẩm Nâng Cấp (VPNC)">
+                <i class="fas fa-arrow-up-right-dots" style="color: #ff5722;"></i>
+                <span id="res-vpnc">0</span>
+            </div>
+            <div class="resource-item" title="Viên Ngọc Thần Bí (VNTB)">
+                <i class="fas fa-meteor" style="color: #9c27b0;"></i>
+                <span id="res-vntb">0</span>
+            </div>
+            <div class="resource-item" title="Level">
+                <i class="fas fa-star" style="color: #ff9800;"></i>
+                <span id="player-level">1</span>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="content-area">
+            <!-- Sảnh Chính -->
+            <section id="screen-home" class="screen active">
+                <h1 class="screen-title">SẢNH CHÍNH</h1>
+                <div class="home-menu">
+                    <button class="nav-btn-large" onclick="navTo('screen-campaign')"><i class="fas fa-map-marked-alt"></i> ĐẤU ẢI</button>
+                    <button class="nav-btn-large" onclick="navTo('screen-battle-test')"><i class="fas fa-khanda"></i> ĐẤU TẬP</button>
+                    <button class="nav-btn-large" onclick="navTo('screen-event')"><i class="fas fa-gift"></i> SỰ KIỆN</button>
+                    <button class="nav-btn-large" onclick="navTo('screen-gacha')"><i class="fas fa-meteor"></i> TRIỆU HỒI</button>
+                    <button class="nav-btn-large" onclick="navTo('screen-roster')"><i class="fas fa-users"></i> DANH SÁCH</button>
+                    <button class="nav-btn-large" onclick="navTo('screen-inventory')"><i class="fas fa-box-open"></i> TÚI ĐỒ</button>
+                </div>
+            </section>
+
+            <!-- Đấu Ải -->
+            <section id="screen-campaign" class="screen">
+                <h1 class="screen-title">HỆ THỐNG ẢI</h1>
+                <div class="campaign-container">
+                    <h2>Chương 1</h2>
+                    <div class="stage-list">
+                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 1</button>
+                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 2</button>
+                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 3</button>
+                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 4</button>
+                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 5</button>
+                        <button class="stage-btn" onclick="alert('Chưa hoạt động')">Ải 6</button>
+                        <button class="stage-btn boss" onclick="alert('Chưa hoạt động')">Ải 7 (BOSS)</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sự Kiện -->
+            <section id="screen-event" class="screen">
+                <h1 class="screen-title">SỰ KIỆN</h1>
+                <div class="event-container">
+                    <p class="coming-soon">Chúng tôi sẽ sớm cập nhật sự kiện thú vị!</p>
+
+                    <div class="giftcode-section">
+                        <!-- Nút hoặc input ẩn có thể gọi function -->
+                        <input type="text" id="giftcode-input" placeholder="Nhập mã...">
+                        <button onclick="claimGiftcode()">Nhận</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Triệu Hồi -->
+            <section id="screen-gacha" class="screen">
+                <h1 class="screen-title">TRIỆU HỒI</h1>
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchGachaTab('daily')">Khu vui chơi</button>
+                    <button class="tab-btn" onclick="switchGachaTab('summon')">Triệu hồi nhân vật</button>
+                </div>
+                <div id="gacha-daily" class="tab-content active">
+                    <h2>Đăng nhập hàng ngày</h2>
+                    <div id="daily-rewards" class="daily-rewards">
+                        <!-- Render by JS -->
+                    </div>
+                    <button id="btn-claim-daily" class="action-btn" onclick="claimDailyReward()">Nhận Quà Hôm Nay</button>
+                </div>
+                <div id="gacha-summon" class="tab-content">
+                    <h2>Triệu hồi nhân vật (1 VNTB / lần)</h2>
+                    <div class="summon-banner">
+                        <div class="banner-image">BANNER</div>
+                    </div>
+                    <button class="action-btn summon-btn" onclick="summon(1)">Triệu hồi x1</button>
+                    <button class="action-btn summon-btn" onclick="summon(10)">Triệu hồi x10</button>
+                    <div id="summon-result" class="summon-result"></div>
+                </div>
+            </section>
+
+            <!-- Danh Sách -->
+            <section id="screen-roster" class="screen">
+                <h1 class="screen-title">DANH SÁCH & ĐỘI HÌNH</h1>
+                <div class="roster-layout">
+                    <div class="formation-panel">
+                        <h2>Đội Hình (Kéo thả hoặc chọn)</h2>
+                        <div class="formation-slots">
+                            <div class="f-slot" id="slot-1" onclick="selectSlot(1)">
+                                <div class="slot-label">Vị trí 1</div>
+                                <div class="char-display" id="f-char-1"></div>
+                            </div>
+                            <div class="f-slot" id="slot-2" onclick="selectSlot(2)">
+                                <div class="slot-label">Vị trí 2</div>
+                                <div class="char-display" id="f-char-2"></div>
+                            </div>
+                            <div class="f-slot" id="slot-3" onclick="selectSlot(3)">
+                                <div class="slot-label">Vị trí 3</div>
+                                <div class="char-display" id="f-char-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="char-list-panel">
+                        <h2>Nhân vật sở hữu</h2>
+                        <div id="owned-chars" class="char-grid">
+                            <!-- Render by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Thông tin & Nâng cấp -->
+                <div id="char-modal" class="modal">
+                    <div class="modal-content">
+                        <span class="close-btn" onclick="closeModal('char-modal')">&times;</span>
+                        <h2 id="modal-char-name">Name</h2>
+                        <div class="char-details">
+                            <p>Level: <span id="modal-char-lv"></span> (Max 150)</p>
+                            <p>HP: <span id="modal-char-hp"></span></p>
+                            <p>ATK: <span id="modal-char-atk"></span></p>
+                            <p>DEF: <span id="modal-char-def"></span></p>
+                            <p>SPD: <span id="modal-char-spd"></span></p>
+                        </div>
+                        <div class="upgrade-section">
+                            <p>Cần: <span id="modal-upgrade-cost"></span> VPNC</p>
+                            <button class="action-btn" onclick="upgradeChar()">Nâng cấp</button>
+                        </div>
+                        <button class="action-btn mt-10" id="btn-equip" onclick="equipChar()">Trang bị vào vị trí đang chọn</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Túi Đồ -->
+            <section id="screen-inventory" class="screen">
+                <h1 class="screen-title">TÚI ĐỒ</h1>
+                <div class="inventory-grid" id="inventory-grid">
+                    <!-- Render by JS -->
+                </div>
+            </section>
+
+            <!-- Đấu Tập -->
+            <section id="screen-battle-test" class="screen">
+                <h1 class="screen-title">ĐẤU TẬP (AUTO BATTLE)</h1>
+                <div class="battle-setup">
+                    <button class="action-btn" onclick="startBattleTest()">BẮT ĐẦU CHIẾN ĐẤU</button>
+                </div>
+                <div id="battle-arena" class="battle-arena" style="display:none;">
+                    <div class="team team-player" id="team-player-arena">
+                        <!-- Player chars -->
+                    </div>
+                    <div class="team team-enemy" id="team-enemy-arena">
+                        <!-- Enemy chars -->
+                    </div>
+                </div>
+                <div id="battle-log" class="battle-log" style="display:none;"></div>
+            </section>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav id="bottom-nav">
+            <button class="nav-btn active" onclick="navTo('screen-home')"><i class="fas fa-home"></i><br>Sảnh</button>
+            <button class="nav-btn" onclick="navTo('screen-campaign')"><i class="fas fa-map"></i><br>Ải</button>
+            <button class="nav-btn" onclick="navTo('screen-event')"><i class="fas fa-gift"></i><br>Sự Kiện</button>
+            <button class="nav-btn" onclick="navTo('screen-gacha')"><i class="fas fa-meteor"></i><br>Triệu Hồi</button>
+            <button class="nav-btn" onclick="navTo('screen-roster')"><i class="fas fa-users"></i><br>Tướng</button>
+            <button class="nav-btn" onclick="navTo('screen-inventory')"><i class="fas fa-box"></i><br>Túi Đồ</button>
+        </nav>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
