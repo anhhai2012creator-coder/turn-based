@@ -27,14 +27,29 @@
                 <i class="fas fa-meteor" style="color: #9c27b0;"></i>
                 <span id="res-vntb">0</span>
             </div>
+            <div class="resource-item" title="Candle (Nến)">
+                <i class="fas fa-fire-flame-curved" style="color: #e74c3c;"></i>
+                <span id="res-candle">0</span>
+            </div>
             <div class="resource-item" title="Level">
                 <i class="fas fa-star" style="color: #ff9800;"></i>
                 <span id="player-level">1</span>
             </div>
         </header>
 
+        <div id="player-exp-bar" style="position: absolute; bottom: 0; left: 0; height: 3px; background: #27ae60; width: 0%; z-index: 11;"></div>
+
         <!-- Main Content Area -->
         <main id="content-area">
+            <!-- Modal Phần Thưởng Ải -->
+            <div id="reward-modal" class="modal">
+                <div class="modal-content" style="text-align: center;">
+                    <h2 style="color: #27ae60;">CHIẾN THẮNG!</h2>
+                    <p>Bạn đã vượt qua ải thành công.</p>
+                    <div id="reward-list" style="margin: 15px 0; font-weight: bold; color: var(--primary-color);"></div>
+                    <button class="action-btn" onclick="closeModal('reward-modal'); navTo('screen-campaign');">Tiếp tục</button>
+                </div>
+            </div>
             <!-- Sảnh Chính -->
             <section id="screen-home" class="screen active">
                 <h1 class="screen-title">SẢNH CHÍNH</h1>
@@ -104,6 +119,36 @@
                         <div id="guest-event-content">
                             <select id="guest-select" style="padding:10px; width:100%; margin-bottom:10px;"></select>
                             <button class="action-btn" onclick="inviteGuest()" style="background:#c2185b; width:100%;">Mời Tướng Này</button>
+                        </div>
+                    </div>
+
+                    <div class="event-banner" style="background:#e8f5e9; border:2px solid #8e24aa; padding:15px; margin-bottom:15px; border-radius:10px;">
+                        <h2 style="color:#6a1b9a; margin-bottom:10px;">🏮 Sign-in Lantern Reward</h2>
+                        <p style="font-size:0.8em; margin-bottom:10px;">Đăng nhập 7 ngày (Chu kỳ 14 ngày)</p>
+                        <div id="lantern-rewards-content" style="display:flex; flex-direction:column; gap:5px;"></div>
+                        <button class="action-btn" id="btn-claim-lantern" onclick="claimLantern()" style="margin-top:10px; background:#8e24aa; width:100%;">Nhận Quà Hôm Nay</button>
+                    </div>
+
+                    <div class="event-banner" style="background:#fffde7; border:2px solid #388e3c; padding:15px; margin-bottom:15px; border-radius:10px;">
+                        <h2 style="color:#1b5e20; margin-bottom:10px;">🍀 Karin Fortune</h2>
+                        <p style="font-size:0.8em; margin-bottom:10px;">Quay may mắn 2 lần / ngày</p>
+                        <div style="display:flex; justify-content:space-around;">
+                            <button class="action-btn" id="btn-fortune-1" onclick="spinFortune(1)" style="background:#4caf50;">Quay Lần 1<br>(100 KC)</button>
+                            <button class="action-btn" id="btn-fortune-2" onclick="spinFortune(2)" style="background:#388e3c;">Quay Lần 2<br>(200 KC)</button>
+                        </div>
+                        <div id="fortune-result" style="margin-top:10px; font-weight:bold; color:#1b5e20;"></div>
+                    </div>
+
+                    <div class="event-banner" style="background:#efebe9; border:2px solid #fbc02d; padding:15px; margin-bottom:15px; border-radius:10px;">
+                        <h2 style="color:#f57f17; margin-bottom:10px;">🕯️ Candle Shop</h2>
+                        <p style="font-size:0.8em; margin-bottom:10px;">Thời gian: 22/8/2026 - 5/9/2026</p>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <button class="action-btn" onclick="buyCandleShop(100, {vpnc: 100000})" style="background:#fbc02d; color:#333;">Mua 100K VPNC (100 Nến)</button>
+                            <button class="action-btn" onclick="buyCandleShop(200, {coin: 3500})" style="background:#fbc02d; color:#333;">Mua 3.5K Xu (200 Nến)</button>
+                            <button class="action-btn" onclick="buyCandleShop(500, {vntb: 2})" style="background:#fbc02d; color:#333;">Mua 2 VNTB (500 Nến)</button>
+                            <button class="action-btn" onclick="buyCandleShop(1000, {diamond: 200})" style="background:#fbc02d; color:#333;">Mua 200 KC (1000 Nến)</button>
+                            <button class="action-btn" onclick="buyCandleShop(3000, {box3k: 1})" style="background:#f57f17;">Hộp Tướng Tự Chọn Lv 129 (3000 Nến)</button>
+                            <button class="action-btn" onclick="buyCandleShop(6000, {box6k: 1})" style="background:#e65100;">Hộp Tướng 3 Ngày Lv 199 (6000 Nến)</button>
                         </div>
                     </div>
 
@@ -216,11 +261,22 @@
                 </div>
             </section>
 
+            <!-- Modal Mở Hộp -->
+            <div id="box-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close-btn" onclick="closeModal('box-modal')">&times;</span>
+                    <h2 id="box-title" style="color:var(--primary-color)">CHỌN TƯỚNG</h2>
+                    <div id="box-options" style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
+                        <!-- Render by JS -->
+                    </div>
+                </div>
+            </div>
+
             <!-- Đấu Tập -->
             <section id="screen-battle-test" class="screen">
-                <h1 class="screen-title">ĐẤU TẬP (AUTO BATTLE)</h1>
+                <h1 class="screen-title">CHIẾN TRƯỜNG</h1>
                 <div class="battle-setup">
-                    <button class="action-btn" onclick="startBattleTest()">BẮT ĐẦU CHIẾN ĐẤU</button>
+                    <button class="action-btn" id="battle-start-btn" onclick="triggerBattleLoop()">BẮT ĐẦU CHIẾN ĐẤU</button>
                 </div>
                 <div id="battle-arena" class="battle-arena" style="display:none;">
                     <div class="team team-player" id="team-player-arena">

@@ -39,9 +39,26 @@ const DEFAULT_DATA = {
         diamond: 300,
         coin: 1000,
         vpnc: 1000,
-        vntb: 2
+        vntb: 2,
+        candle: 0
     },
+    inventory: {
+        box3k: 0,
+        box6k: 0
+    },
+    lanternData: {
+        startDate: new Date().toDateString(),
+        claimedDays: 0,
+        lastClaimDate: null
+    },
+    fortuneData: {
+        lastSpinDate: null,
+        spinsToday: 0
+    },
+    onlineMinutesToday: 0,
+    lastOnlineDate: null,
     playerLevel: 1,
+    playerExp: 0,
     chars: [
         { id: 'kangu', level: 1 },
         { id: 'meganer', level: 1 },
@@ -88,10 +105,38 @@ function loadData() {
         // Fallback for new fields
         if(!gameData.resources) gameData = JSON.parse(JSON.stringify(DEFAULT_DATA));
     if(gameData.campaignStage === undefined) gameData.campaignStage = 1;
+        if(gameData.playerLevel === undefined) gameData.playerLevel = 1;
+        if(gameData.playerExp === undefined) gameData.playerExp = 0;
+        if(gameData.resources.candle === undefined) gameData.resources.candle = 0;
+        if(gameData.onlineMinutesToday === undefined) gameData.onlineMinutesToday = 0;
+        if(gameData.inventory === undefined) gameData.inventory = {box3k: 0, box6k: 0};
+        if(gameData.lanternData === undefined) gameData.lanternData = {startDate: new Date().toDateString(), claimedDays: 0, lastClaimDate: null};
+        if(gameData.fortuneData === undefined) gameData.fortuneData = {lastSpinDate: null, spinsToday: 0};
     } else {
         gameData = JSON.parse(JSON.stringify(DEFAULT_DATA));
     }
     checkGuestExpiration();
+    startOnlineTimer();
+}
+
+function startOnlineTimer() {
+    setInterval(() => {
+        const todayStr = new Date().toDateString();
+        if(gameData.lastOnlineDate !== todayStr) {
+            gameData.lastOnlineDate = todayStr;
+            gameData.onlineMinutesToday = 0;
+        }
+
+        if(gameData.onlineMinutesToday < 30) {
+            gameData.onlineMinutesToday++;
+            gameData.resources.candle += 20;
+            saveData();
+        }
+    }, 60000); // 1 minute
+}
+
+function getRequiredExp(level) {
+    return Math.floor(50 * Math.pow(1.25, level - 1));
 }
 
 function updateTopBarUI() {
@@ -99,7 +144,20 @@ function updateTopBarUI() {
     document.getElementById('res-coin').innerText = gameData.resources.coin;
     document.getElementById('res-vpnc').innerText = gameData.resources.vpnc;
     document.getElementById('res-vntb').innerText = gameData.resources.vntb;
+    if(document.getElementById('res-candle')) document.getElementById('res-candle').innerText = gameData.resources.candle;
     document.getElementById('player-level').innerText = gameData.playerLevel;
+
+    // Check level up
+    let reqExp = getRequiredExp(gameData.playerLevel);
+    while(gameData.playerExp >= reqExp && gameData.playerLevel < 250) {
+        gameData.playerExp -= reqExp;
+        gameData.playerLevel++;
+        reqExp = getRequiredExp(gameData.playerLevel);
+        document.getElementById('player-level').innerText = gameData.playerLevel;
+    }
+
+    let expPct = gameData.playerLevel >= 250 ? 100 : (gameData.playerExp / reqExp) * 100;
+    document.getElementById('player-exp-bar').style.width = expPct + '%';
 }
 
 // --- Hệ thống Ngoại tuyến (Sự kiện, Triệu hồi, Túi đồ) ---
@@ -154,6 +212,68 @@ function initEventScreen() {
     document.getElementById('sale-hit-price').innerText = hitPrice.toLocaleString();
     document.getElementById('sale-vpnc-price').innerText = vpncPrice.toLocaleString();
 
+    // Sign-in Lantern Reward
+    const todayStr = new Date().toDateString();
+
+    // Check cycle 14 days
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const startMs = new Date(gameData.lanternData.startDate).getTime();
+    const nowMs = new Date().getTime();
+    const daysSinceStart = Math.floor((nowMs - startMs) / msPerDay);
+
+    if(daysSinceStart >= 14) {
+        gameData.lanternData.startDate = todayStr;
+        gameData.lanternData.claimedDays = 0;
+        gameData.lanternData.lastClaimDate = null;
+        saveData();
+    }
+
+    const lanternBtn = document.getElementById('btn-claim-lantern');
+    const lRewards = [
+        "200 Kim Cương", "5 VNTB", "500 Kim Cương", "10 VNTB", "100.000 VPNC", "2000 Kim Cương", "500.000 VPNC"
+    ];
+    let lHtml = '';
+    for(let i=0; i<7; i++) {
+        let status = '⏳ Chờ';
+        let color = '#666';
+
+        // Quà ngày 1-7 và 8-14 lặp lại, nên tính index dựa trên claimedDays % 7
+        const displayDay = (gameData.lanternData.claimedDays >= 7 ? gameData.lanternData.claimedDays - 7 : gameData.lanternData.claimedDays);
+
+        if(i < displayDay) {
+            status = '✅ Đã nhận'; color = 'green';
+        } else if(i === displayDay && gameData.lanternData.lastClaimDate !== todayStr) {
+            status = '🎁 Sẵn sàng'; color = '#e91e63';
+        }
+        lHtml += `<div style="display:flex; justify-content:space-between; font-size:0.9em; border-bottom:1px solid #ddd; padding:2px 0;">
+            <span>Ngày ${i+1}: <b>${lRewards[i]}</b></span>
+            <span style="color:${color}; font-weight:bold;">${status}</span>
+        </div>`;
+    }
+    document.getElementById('lantern-rewards-content').innerHTML = lHtml;
+
+    if (gameData.lanternData.claimedDays >= 14 || gameData.lanternData.lastClaimDate === todayStr) {
+        lanternBtn.innerText = "Hôm nay đã nhận";
+        lanternBtn.disabled = true;
+        lanternBtn.style.background = "#888";
+    } else {
+        lanternBtn.innerText = "Nhận Quà Hôm Nay";
+        lanternBtn.disabled = false;
+        lanternBtn.style.background = "#8e24aa";
+    }
+
+    // Karin Fortune
+    if(gameData.fortuneData.lastSpinDate !== todayStr) {
+        gameData.fortuneData.lastSpinDate = todayStr;
+        gameData.fortuneData.spinsToday = 0;
+        saveData();
+    }
+
+    document.getElementById('btn-fortune-1').disabled = gameData.fortuneData.spinsToday >= 1;
+    document.getElementById('btn-fortune-1').style.background = gameData.fortuneData.spinsToday >= 1 ? '#888' : '#4caf50';
+    document.getElementById('btn-fortune-2').disabled = gameData.fortuneData.spinsToday >= 2;
+    document.getElementById('btn-fortune-2').style.background = gameData.fortuneData.spinsToday >= 2 ? '#888' : '#388e3c';
+
     // Mời lữ khách đồng hành
     const guestSelect = document.getElementById('guest-select');
     guestSelect.innerHTML = '';
@@ -190,6 +310,87 @@ function inviteGuest() {
     alert(`Mời thành công ${CHARACTERS[charId].name}! Tướng sẽ ở lại đội hình trong 5 ngày.`);
     initEventScreen(); // Refresh
 }
+
+function claimLantern() {
+    const todayStr = new Date().toDateString();
+    if(gameData.lanternData.lastClaimDate === todayStr || gameData.lanternData.claimedDays >= 14) return;
+
+    const day = gameData.lanternData.claimedDays >= 7 ? gameData.lanternData.claimedDays - 7 : gameData.lanternData.claimedDays;
+
+    let rewardText = "";
+    if(day === 0) { gameData.resources.diamond += 200; rewardText = "200 Kim Cương"; }
+    if(day === 1) { gameData.resources.vntb += 5; rewardText = "5 VNTB"; }
+    if(day === 2) { gameData.resources.diamond += 500; rewardText = "500 Kim Cương"; }
+    if(day === 3) { gameData.resources.vntb += 10; rewardText = "10 VNTB"; }
+    if(day === 4) { gameData.resources.vpnc += 100000; rewardText = "100.000 VPNC"; }
+    if(day === 5) { gameData.resources.diamond += 2000; rewardText = "2000 Kim Cương"; }
+    if(day === 6) { gameData.resources.vpnc += 500000; rewardText = "500.000 VPNC"; }
+
+    gameData.lanternData.claimedDays++;
+    gameData.lanternData.lastClaimDate = todayStr;
+    saveData();
+    alert(`Nhận thành công ${rewardText}!`);
+    initEventScreen();
+}
+
+function spinFortune(turn) {
+    let cost = turn === 1 ? 100 : 200;
+    if(gameData.resources.diamond < cost) {
+        alert("Không đủ Kim Cương!");
+        return;
+    }
+
+    gameData.resources.diamond -= cost;
+    gameData.fortuneData.spinsToday = turn;
+
+    let resText = "";
+    let baseExp = gameData.playerLevel * 50; // Scale exp theo lv
+
+    if(turn === 1) {
+        let dia = Math.floor(Math.random() * (300 - 80 + 1)) + 80;
+        let vpnc = Math.floor(Math.random() * (5000 - 1000 + 1)) + 1000;
+        let vntb = Math.floor(Math.random() * (10 - 1 + 1)) + 1;
+        let exp = 10000 + baseExp;
+        gameData.resources.diamond += dia;
+        gameData.resources.vpnc += vpnc;
+        gameData.resources.vntb += vntb;
+        gameData.playerExp += exp;
+        resText = `Nhận: ${dia} KC, ${vpnc} VPNC, ${vntb} VNTB, ${exp} EXP`;
+    } else {
+        let dia = Math.floor(Math.random() * (700 - 160 + 1)) + 160;
+        let vpnc = Math.floor(Math.random() * (15000 - 8000 + 1)) + 8000;
+        let vntb = Math.floor(Math.random() * (15 - 5 + 1)) + 5;
+        let exp = 30000 + (baseExp * 2);
+        gameData.resources.diamond += dia;
+        gameData.resources.vpnc += vpnc;
+        gameData.resources.vntb += vntb;
+        gameData.playerExp += exp;
+        resText = `Nhận: ${dia} KC, ${vpnc} VPNC, ${vntb} VNTB, ${exp} EXP`;
+    }
+
+    saveData();
+    document.getElementById('fortune-result').innerText = resText;
+    initEventScreen();
+}
+
+function buyCandleShop(cost, rewardObj) {
+    if(gameData.resources.candle < cost) {
+        alert("Không đủ Nến!");
+        return;
+    }
+    gameData.resources.candle -= cost;
+
+    if(rewardObj.vpnc) gameData.resources.vpnc += rewardObj.vpnc;
+    if(rewardObj.coin) gameData.resources.coin += rewardObj.coin;
+    if(rewardObj.vntb) gameData.resources.vntb += rewardObj.vntb;
+    if(rewardObj.diamond) gameData.resources.diamond += rewardObj.diamond;
+    if(rewardObj.box3k) gameData.inventory.box3k += rewardObj.box3k;
+    if(rewardObj.box6k) gameData.inventory.box6k += rewardObj.box6k;
+
+    saveData();
+    alert("Mua thành công!");
+}
+
 
 function buySaleHit() {
     if(gameData.chars.find(c => c.id === 'hit')) {
@@ -277,9 +478,12 @@ function summon(times) {
         } else if(rand < 0.7) {
             resultText += "<p>Nhận 500 Xu</p>";
             gameData.resources.coin += 500;
-        } else {
+        } else if(rand < 0.9) {
             resultText += "<p>Nhận 300 VPNC</p>";
             gameData.resources.vpnc += 300;
+        } else {
+            resultText += "<p>Nhận 100 Candle (Nến)</p>";
+            gameData.resources.candle += 100;
         }
     }
 
@@ -307,7 +511,64 @@ function renderInventory() {
             <i class="fas fa-meteor" style="color: #9c27b0;"></i>
             <p>${gameData.resources.vntb} VNTB</p>
         </div>
+        <div class="inv-item">
+            <i class="fas fa-fire-flame-curved" style="color: #e74c3c;"></i>
+            <p>${gameData.resources.candle} Nến</p>
+        </div>
+        <div class="inv-item" style="cursor:pointer; border: 2px dashed #fbc02d;" onclick="openBox('box3k')">
+            <i class="fas fa-box" style="color: #f57f17;"></i>
+            <p>Hộp Tướng Lv129 (${gameData.inventory.box3k})</p>
+        </div>
+        <div class="inv-item" style="cursor:pointer; border: 2px dashed #e65100;" onclick="openBox('box6k')">
+            <i class="fas fa-box-open" style="color: #e65100;"></i>
+            <p>Hộp Tướng 3 Ngày Lv199 (${gameData.inventory.box6k})</p>
+        </div>
     `;
+}
+
+function openBox(boxType) {
+    if(gameData.inventory[boxType] <= 0) {
+        alert("Bạn không có hộp này!");
+        return;
+    }
+
+    let charsForBox = [];
+    if(boxType === 'box3k') {
+        // Tự chọn LV 129 Vĩnh viễn (gồm Vegeta)
+        charsForBox = Object.keys(CHARACTERS).filter(id => !gameData.chars.find(c => c.id === id));
+    } else {
+        // Tự chọn LV 199 (3 ngày) (Goku, Cooler, Broly, Zamasu)
+        const allowed = ['gokuxeno', 'coolergold', 'brolysp', 'zamasu'];
+        charsForBox = allowed.filter(id => !gameData.chars.find(c => c.id === id));
+    }
+
+    if(charsForBox.length === 0) {
+        alert("Bạn đã sở hữu toàn bộ tướng trong hộp này!");
+        return;
+    }
+
+    let html = '';
+    charsForBox.forEach(id => {
+        html += `<button class="action-btn" onclick="claimBoxHero('${boxType}', '${id}')" style="background:var(--primary-color)">${CHARACTERS[id].name}</button>`;
+    });
+
+    document.getElementById('box-options').innerHTML = html;
+    document.getElementById('box-modal').classList.add('active');
+}
+
+function claimBoxHero(boxType, charId) {
+    gameData.inventory[boxType]--;
+    if(boxType === 'box3k') {
+        gameData.chars.push({ id: charId, level: 129 });
+        alert(`Mở hộp thành công! Nhận được ${CHARACTERS[charId].name} vĩnh viễn ở Level 129.`);
+    } else {
+        const expireTime = new Date().getTime() + (3 * 24 * 60 * 60 * 1000); // 3 ngày
+        gameData.chars.push({ id: charId, level: 199, isGuest: true, expireTime: expireTime });
+        alert(`Mở hộp thành công! Nhận được ${CHARACTERS[charId].name} ở Level 199 dùng trong 3 ngày.`);
+    }
+    saveData();
+    closeModal('box-modal');
+    renderInventory();
 }
 
 // --- Hệ thống Danh sách Tướng & Nâng cấp ---
@@ -392,6 +653,15 @@ const CHARACTERS = {
         baseSpd: 155,
         maxEn: 4.4,
         color: '#9b59b6'
+    },
+    'vegetassg': {
+        name: 'Vegeta SSG (ATK)',
+        baseHp: 219000000,
+        baseAtk: 18654000,
+        baseDef: 3500,
+        baseSpd: 150,
+        maxEn: 2,
+        color: '#2980b9'
     }
 };
 
@@ -427,6 +697,11 @@ function getCharStats(id, level) {
             stats.atk = Math.floor(stats.atk * 1.10);
             stats.hp = Math.floor(stats.hp * 1.08);
         }
+    }
+
+    if(level >= 120 && id === 'vegetassg') {
+        stats.atk = Math.floor(stats.atk * 1.25);
+        stats.spd = Math.floor(stats.spd * 1.10);
     }
 
     return stats;
@@ -687,14 +962,35 @@ function startBattleSetup(type, stageInfo, enemyList) {
     applySongBich(battleState.teams.A);
     applySongBich(battleState.teams.B);
 
+    // UI Updates
+    if(type === 'campaign') {
+        document.getElementById('battle-start-btn').style.display = 'none';
+        document.getElementById('battle-arena').style.display = 'flex';
+        document.getElementById('battle-log').style.display = 'block';
+    } else {
+        document.getElementById('battle-start-btn').style.display = 'inline-block';
+    }
+
     renderBattleArena();
     logBattle("--- BẮT ĐẦU TRẬN CHIẾN ---");
-    if(type === 'campaign') logBattle(`<b>ẢI ${stageInfo}</b>`);
+    if(type === 'campaign') {
+        logBattle(`<b>ẢI ${stageInfo}</b>`);
+        const goesFirst = Math.random() < 0.5 ? 'A' : 'B';
+        logBattle(`Đội ${goesFirst === 'A' ? 'Người Chơi' : 'Địch'} được quyền đi trước!`);
+        battleLoop(goesFirst);
+    } else {
+        logBattle(`Vui lòng bấm 'Bắt Đầu Chiến Đấu'`);
+    }
+}
 
-    // Random team đi trước
+// Hàm này được gọi từ UI Đấu Tập (index.html đang trỏ tới startBattleTest, ta cần redirect nó tới việc run loop)
+function triggerBattleLoop() {
+    if(battleState.isOver) return;
+    document.getElementById('battle-start-btn').style.display = 'none';
+    document.getElementById('battle-arena').style.display = 'flex';
+    document.getElementById('battle-log').style.display = 'block';
     const goesFirst = Math.random() < 0.5 ? 'A' : 'B';
     logBattle(`Đội ${goesFirst === 'A' ? 'Người Chơi' : 'Địch'} được quyền đi trước!`);
-
     battleLoop(goesFirst);
 }
 
@@ -778,6 +1074,7 @@ function calcDamage(attacker, defender, rawDmg, isSkill = false) {
     if(attacker.id === 'jiren' && attacker.level >= 80) armorPen += 0.45;
     if(attacker.id === 'brolysp') armorPen += 0.3;
     if(attacker.id === 'gokuxeno' && attacker.level >= 251) armorPen += 0.06;
+    if(attacker.id === 'vegetassg' && attacker.level >= 120) armorPen += 0.10;
 
     // Zamasu Passive 1: Kẻ tấn công mang Terror bị giảm 30% ST
     if(attacker.buffs.find(b => b.type === 'terror')) {
@@ -877,19 +1174,36 @@ function battleLoop(currentTeam) {
 
         if (battleState.type === 'campaign' && playerWon) {
             // Reward and unlock next
-            let exp = 100;
-            let diamondReward = 20;
+            let stageMul = battleState.stageInfo;
+            let exp = 100 + (stageMul * 10);
+            let diamondReward = 50 + stageMul;
+            let vpncReward = 4000 + (stageMul * 100);
+            let coinReward = 1000 + (stageMul * 50);
+
             // Mid-autumn event boost
             exp = Math.floor(exp * 1.3);
             diamondReward = Math.floor(diamondReward * 1.4);
 
             gameData.resources.diamond += diamondReward;
-            logBattle(`<b style="color:green">Nhận thưởng Ải: ${exp} EXP, ${diamondReward} Kim Cương (Đã tính boost sự kiện)</b>`);
+            gameData.resources.vpnc += vpncReward;
+            gameData.resources.coin += coinReward;
+            gameData.playerExp += exp;
+
+            logBattle(`<b style="color:green">Nhận thưởng Ải: ${exp} EXP, ${diamondReward} KC, ${vpncReward} VPNC, ${coinReward} Xu!</b>`);
+
+            // Show modal
+            document.getElementById('reward-list').innerHTML = `
+                <p>+${exp} EXP</p>
+                <p>+${diamondReward} Kim Cương</p>
+                <p>+${vpncReward} VPNC</p>
+                <p>+${coinReward} Xu</p>
+            `;
+            document.getElementById('reward-modal').classList.add('active');
 
             if(battleState.stageInfo === gameData.campaignStage) {
                 gameData.campaignStage++;
-                saveData();
             }
+            saveData();
         }
         return;
     }
@@ -1008,6 +1322,12 @@ function battleLoop(currentTeam) {
             }
         }
 
+        // Broly 10% shield on first attack (God Skill Level 251)
+        if(attacker.id === 'brolysp' && attacker.level >= 251 && !attacker.brolyGodShieldApplied) {
+            attacker.brolyGodShieldApplied = true;
+            attacker.buffs.push({type: 'shield', value: Math.floor(attacker.maxHp * 0.10)});
+        }
+
         // Cập nhật UI acting
         document.querySelectorAll('.battle-char').forEach(el => el.classList.remove('acting'));
         const attackerEl = document.getElementById(`char-${attacker.uid}`);
@@ -1031,6 +1351,42 @@ function battleLoop(currentTeam) {
         if((attacker.id === 'jiren' && attacker.level >= 80) || (attacker.id === 'coolergold' && attacker.en >= attacker.maxEn)) {
             target = enemies[enemies.length - 1];
         }
+
+        // Né Chiêu check (Dodge)
+        let dodgeRate = 0;
+        if(target.id === 'gokuxeno' && target.level >= 251) dodgeRate += 0.09;
+        if(target.id === 'coolergold' && target.level >= 251) dodgeRate += 0.05;
+        if(target.id === 'zamasu' && target.level >= 251) dodgeRate += 0.07;
+
+        let dodgeBuff = 0;
+        target.buffs.filter(b => b.type === 'dodge_buff').forEach(b => dodgeBuff += b.value);
+        dodgeRate += dodgeBuff;
+
+        if(Math.random() < dodgeRate) {
+            showFloatingText(target.uid, `NÉ!`, 'heal');
+            logBattle(`-> ${target.name} đã né đòn tấn công của ${attacker.name}!`);
+            i++;
+            battleState.timer = setTimeout(executeAction, 1000);
+            return;
+        }
+
+        // Kiểm tra giáp ảo (Shield)
+        const applyShieldFirst = (dmg, targetEntity) => {
+            const shieldBuff = targetEntity.buffs.find(b => b.type === 'shield');
+            if(shieldBuff) {
+                if(shieldBuff.value >= dmg) {
+                    shieldBuff.value -= dmg;
+                    showFloatingText(targetEntity.uid, `-${dmg} (Giáp)`, 'heal');
+                    return 0;
+                } else {
+                    let rem = dmg - shieldBuff.value;
+                    shieldBuff.value = 0;
+                    targetEntity.buffs = targetEntity.buffs.filter(b => b.type !== 'shield');
+                    return rem;
+                }
+            }
+            return dmg;
+        };
 
         // Bạo Kích check
         let isCrit = false;
@@ -1099,23 +1455,24 @@ function battleLoop(currentTeam) {
             }
         }
 
-        // Apply pre-attack multiplier for active skills or passives
-        let dmgMultiplier = 1;
-        if(isCrit) dmgMultiplier *= 3; // Bạo kích
-        if(attacker.id === 'brolysp') {
-            if(attacker.level >= 80) dmgMultiplier *= 1.65; // Passive 1
-            if(attacker.brolyStack) dmgMultiplier *= (1 + (attacker.brolyStack * 0.25)); // Passive 3
-        }
-        if(attacker.id === 'jiren' && attacker.level >= 130 && (attacker.hp / attacker.maxHp) < 0.3) { // Beserk
-            const missingHp = 1 - (attacker.hp / attacker.maxHp);
-            dmgMultiplier *= (1 + (missingHp * 100 * 2 / 100)); // 0.5% HP = 1% ST -> 1% HP = 2% ST
-        }
-        if(attacker.id === 'zamasu' && attacker.level >= 251) { // Zamasu Thần 1: +20% dmg cho bleeding
-             // Buffed Bleed (implemented via increasing base Zamasu damage conditionally if enemies bleed)
-             // However, strictly "Tăng thêm 20% từ [bleeding]" means 1.2x bleed damage, or 1.2x total dmg?
-             // Assuming 1.2x damage if enemy has bleeding for simplicity, or 1.2x bleed DoT.
-             // We'll apply 1.2x bleed damage at DoT phase.
-        }
+        // Hàm tính toán multiplier có target-specific logic
+        const getMultiplier = (atk, tgt) => {
+            let mult = 1;
+            if(isCrit) mult *= 3;
+            if(atk.id === 'brolysp') {
+                if(atk.level >= 80) mult *= 1.65;
+                if(atk.brolyStack) mult *= (1 + (atk.brolyStack * 0.25));
+            }
+            if(atk.id === 'jiren' && atk.level >= 130 && (atk.hp / atk.maxHp) < 0.3) {
+                const missingHp = 1 - (atk.hp / atk.maxHp);
+                mult *= (1 + (missingHp * 100 * 2 / 100));
+            }
+            if(atk.id === 'vegetassg') {
+                if(atk.level >= 20 && tgt.atk < atk.atk) mult *= 1.40;
+                if(atk.level >= 120 && (tgt.hp / tgt.maxHp) < 0.45) mult *= 1.22;
+            }
+            return mult;
+        };
 
         if (attacker.en >= attacker.maxEn) {
             // --- Dùng Kỹ Năng Chủ Động ---
@@ -1123,10 +1480,12 @@ function battleLoop(currentTeam) {
 
             if (attacker.id === 'kangu') {
                 // Kangu (4 en): Phóng ra 1 tia năng lượng gây 200% ATK kèm 5% HP còn lại của kẻ địch.
-                let dmg = calcDamage(attacker, target, attacker.atk * 2.0);
-                if (attacker.level >= 150) dmg = calcDamage(attacker, target, attacker.atk * 2.3);
+                let targetMult = getMultiplier(attacker, target);
+                let dmg = calcDamage(attacker, target, attacker.atk * 2.0 * targetMult);
+                if (attacker.level >= 150) dmg = calcDamage(attacker, target, attacker.atk * 2.3 * targetMult);
                 dmg += Math.floor(target.hp * 0.05);
 
+                dmg = applyShieldFirst(dmg, target);
                 target.hp -= dmg;
                 target.buffs.push({type: 'suy_giam', duration: 1}); // Giảm 40% hồi phục, ta sẽ set duration 1
                 showFloatingText(target.uid, `-${dmg}`, 'damage');
@@ -1135,6 +1494,7 @@ function battleLoop(currentTeam) {
                 // Nội tại 3 (lv 100): 75% phóng thêm 1 tia
                 if (attacker.level >= 100 && Math.random() < 0.75) {
                     let extraDmg = Math.floor(dmg * 0.75);
+                    extraDmg = applyShieldFirst(extraDmg, target);
                     target.hp -= extraDmg;
                     showFloatingText(target.uid, `-${extraDmg}`, 'damage');
                     logBattle(`-> (Nội tại) Phóng thêm tia năng lượng gây ${extraDmg} ST lên ${target.name}.`);
@@ -1142,7 +1502,9 @@ function battleLoop(currentTeam) {
 
             } else if (attacker.id === 'meganer') {
                 // Mega Ner (5en): Dịch chuyển tới kẻ địch gây 280% ATK, tăng 15% ST
-                let dmg = calcDamage(attacker, target, attacker.atk * 2.8);
+                let targetMult = getMultiplier(attacker, target);
+                let dmg = calcDamage(attacker, target, attacker.atk * 2.8 * targetMult);
+                dmg = applyShieldFirst(dmg, target);
                 target.hp -= dmg;
                 showFloatingText(target.uid, `-${dmg}`, 'damage');
                 logBattle(`-> Dịch chuyển đánh ${target.name} gây ${dmg} ST.`);
@@ -1150,7 +1512,9 @@ function battleLoop(currentTeam) {
 
             } else if (attacker.id === 'jaco') {
                 // Jaco (4.5en): Tung 1 đánh thường cường hoá bằng 105% ATK, hồi máu toàn đội
-                let dmg = calcDamage(attacker, target, attacker.atk * 1.05);
+                let targetMult = getMultiplier(attacker, target);
+                let dmg = calcDamage(attacker, target, attacker.atk * 1.05 * targetMult);
+                dmg = applyShieldFirst(dmg, target);
                 target.hp -= dmg;
                 showFloatingText(target.uid, `-${dmg}`, 'damage');
                 logBattle(`-> Đánh cường hoá ${target.name} gây ${dmg} ST.`);
@@ -1187,9 +1551,10 @@ function battleLoop(currentTeam) {
                 logBattle(`-> Hồi máu toàn đội!`);
             } else if (attacker.id === 'hit') {
                 // Hit (7en): Gây ST bằng 110% ATK toàn địch, áp dụng [ĂN MÒN]
-                let baseDmg = attacker.atk * 1.1 * dmgMultiplier;
                 logBattle(`-> ${attacker.name} tấn công toàn đội địch!`);
                 enemies.forEach(e => {
+                    let targetMult = getMultiplier(attacker, e);
+                    let baseDmg = attacker.atk * 1.1 * targetMult;
                     let actualDmg = calcDamage(attacker, e, baseDmg);
                     e.hp -= actualDmg;
                     showFloatingText(e.uid, `-${actualDmg}`, 'damage');
@@ -1204,7 +1569,8 @@ function battleLoop(currentTeam) {
             } else if (attacker.id === 'jiren') {
                 let jirenBase = 2.75;
                 if(attacker.level >= 180) jirenBase += 0.40;
-                let actualDmg = calcDamage(attacker, target, attacker.atk * jirenBase * dmgMultiplier);
+                let targetMult = getMultiplier(attacker, target);
+                let actualDmg = calcDamage(attacker, target, attacker.atk * jirenBase * targetMult);
                 target.hp -= actualDmg;
                 showFloatingText(target.uid, `-${actualDmg}`, 'damage');
                 logBattle(`-> Gây ${actualDmg} ST lên ${target.name}.`);
@@ -1215,10 +1581,12 @@ function battleLoop(currentTeam) {
                     attacker.buffs.push({type: 'jiren_crit', value: 0.15}); // Tăng vĩnh viễn trong trận
                 }
             } else if (attacker.id === 'gokuxeno') {
-                let actualDmg = attacker.atk * 0.55 * dmgMultiplier;
                 logBattle(`-> Tấn công diện rộng!`);
                 enemies.forEach(e => {
+                    let targetMult = getMultiplier(attacker, e);
+                    let actualDmg = attacker.atk * 0.55 * targetMult;
                     let finalDmg = calcDamage(attacker, e, actualDmg);
+                    finalDmg = applyShieldFirst(finalDmg, e);
                     e.hp -= finalDmg;
                     showFloatingText(e.uid, `-${finalDmg}`, 'damage');
                     e.buffs.push({type: 'terror', duration: attacker.level >= 180 ? 3 : 2}); // Terror giảm 30% ST địch, xài chung
@@ -1241,7 +1609,9 @@ function battleLoop(currentTeam) {
                 let coolerBase = 2.75;
                 if(attacker.level >= 180) coolerBase += 0.45;
                 if(attacker.level >= 251) coolerBase += 0.10;
-                let actualDmg = calcDamage(attacker, target, attacker.atk * coolerBase * dmgMultiplier);
+                let targetMult = getMultiplier(attacker, target);
+                let actualDmg = calcDamage(attacker, target, attacker.atk * coolerBase * targetMult);
+                actualDmg = applyShieldFirst(actualDmg, target);
                 target.hp -= actualDmg;
                 showFloatingText(target.uid, `-${actualDmg}`, 'damage');
                 if(Math.random() < 0.4) {
@@ -1255,7 +1625,9 @@ function battleLoop(currentTeam) {
                     logBattle(`-> [Phân tán] toàn đội địch!`);
                 }
             } else if (attacker.id === 'brolysp') {
-                let actualDmg = calcDamage(attacker, target, attacker.atk * 2.75 * dmgMultiplier);
+                let targetMult = getMultiplier(attacker, target);
+                let actualDmg = calcDamage(attacker, target, attacker.atk * 2.75 * targetMult);
+                actualDmg = applyShieldFirst(actualDmg, target);
                 target.hp -= actualDmg;
                 showFloatingText(target.uid, `-${actualDmg}`, 'damage');
                 if(!attacker.buffs.find(b => b.type === 'broly_crit')) {
@@ -1263,9 +1635,11 @@ function battleLoop(currentTeam) {
                 }
                 target.buffs.push({type: 'dung_cam'}); // Cấm hồi sinh
             } else if (attacker.id === 'zamasu') {
-                let actualDmg = attacker.atk * 1.1 * dmgMultiplier;
                 enemies.forEach(e => {
+                    let targetMult = getMultiplier(attacker, e);
+                    let actualDmg = attacker.atk * 1.1 * targetMult;
                     let finalDmg = calcDamage(attacker, e, actualDmg);
+                    finalDmg = applyShieldFirst(finalDmg, e);
                     e.hp -= finalDmg;
                     showFloatingText(e.uid, `-${finalDmg}`, 'damage');
                     if(Math.random() < 0.3) {
@@ -1273,6 +1647,28 @@ function battleLoop(currentTeam) {
                         if(Math.random() < 0.5) e.buffs.push({type: 'stun', duration: 2});
                     }
                 });
+            } else if (attacker.id === 'vegetassg') {
+                logBattle(`-> ${attacker.name} tấn công toàn đội địch!`);
+                enemies.forEach(e => {
+                    let targetMult = getMultiplier(attacker, e);
+                    let actualDmg = attacker.atk * 1.0 * targetMult;
+                    let finalDmg = calcDamage(attacker, e, actualDmg);
+                    finalDmg = applyShieldFirst(finalDmg, e);
+                    e.hp -= finalDmg;
+                    showFloatingText(e.uid, `-${finalDmg}`, 'damage');
+                });
+
+                attacker.buffs.push({type: 'dodge_buff', value: 0.20, duration: 2});
+                allies.forEach(a => {
+                    if(a.uid !== attacker.uid) a.buffs.push({type: 'dodge_buff', value: 0.09, duration: 2});
+                });
+                logBattle(`-> Tăng 20% né cho bản thân và 9% né cho đồng đội!`);
+
+                if(attacker.level >= 40) {
+                    let shieldAmt = Math.floor(attacker.atk * 1.85);
+                    attacker.buffs.push({type: 'shield', value: shieldAmt});
+                    logBattle(`-> Tạo khiên ảo ${shieldAmt} HP!`);
+                }
             }
 
             attacker.en = 0; // Reset EN
@@ -1322,38 +1718,43 @@ function battleLoop(currentTeam) {
                     logBattle(`-> Tích 1 Dấu ấn HP cho ${lowestAlly.name}.`);
                 }
             } else if (attacker.id === 'hit') {
-                let dmg = calcDamage(attacker, target, attacker.atk * 0.79 * dmgMultiplier);
+                let targetMult = getMultiplier(attacker, target);
+                let dmg = calcDamage(attacker, target, attacker.atk * 0.79 * targetMult);
                 target.hp -= dmg;
                 attacker.en += 1.8;
                 showFloatingText(target.uid, `-${dmg}`, 'damage');
                 logBattle(`<span style="color:${attacker.color}">${attacker.name}</span> đánh thường ${target.name} gây ${dmg} ST.`);
             } else if (attacker.id === 'jiren') {
-                let dmg = calcDamage(attacker, target, attacker.atk * 0.98 * dmgMultiplier);
+                let targetMult = getMultiplier(attacker, target);
+                let dmg = calcDamage(attacker, target, attacker.atk * 0.98 * targetMult);
                 target.hp -= dmg;
                 attacker.en += 1.8;
                 showFloatingText(target.uid, `-${dmg}`, 'damage');
                 if(attacker.level >= 130) {
-                    // Severe wound deals % of dmg taken, not 100%. User clarified 2% (0.02)
                     target.buffs.push({type: 'severe_wound', value: attacker.level >= 251 ? 0.024 : 0.02, duration: 2, dmgTaken: 0});
                 }
             } else if (attacker.id === 'gokuxeno') {
-                let dmg = calcDamage(attacker, target, attacker.atk * 1.0 * dmgMultiplier);
+                let targetMult = getMultiplier(attacker, target);
+                let dmg = calcDamage(attacker, target, attacker.atk * 1.0 * targetMult);
                 target.hp -= dmg;
                 attacker.en += 0.9;
                 showFloatingText(target.uid, `-${dmg}`, 'damage');
             } else if (attacker.id === 'coolergold') {
-                let dmg = calcDamage(attacker, target, attacker.atk * 0.99 * dmgMultiplier);
+                let targetMult = getMultiplier(attacker, target);
+                let dmg = calcDamage(attacker, target, attacker.atk * 0.99 * targetMult);
                 target.hp -= dmg;
                 attacker.en += 1.2;
                 showFloatingText(target.uid, `-${dmg}`, 'damage');
             } else if (attacker.id === 'brolysp') {
-                let dmg = calcDamage(attacker, target, attacker.atk * 1.0 * dmgMultiplier);
+                let targetMult = getMultiplier(attacker, target);
+                let dmg = calcDamage(attacker, target, attacker.atk * 1.0 * targetMult);
                 target.hp -= dmg;
                 attacker.en += 1.0;
                 showFloatingText(target.uid, `-${dmg}`, 'damage');
             } else if (attacker.id === 'zamasu') {
-                let dmg = attacker.atk * 0.88 * dmgMultiplier;
                 enemies.forEach(e => {
+                    let targetMult = getMultiplier(attacker, e);
+                    let dmg = attacker.atk * 0.88 * targetMult;
                     let finalDmg = calcDamage(attacker, e, dmg);
                     e.hp -= finalDmg;
                     showFloatingText(e.uid, `-${finalDmg}`, 'damage');
@@ -1361,7 +1762,6 @@ function battleLoop(currentTeam) {
                 });
                 attacker.en += 1.3;
 
-                // Cập nhật Zamasu passive 2: 80% choáng 1 mục tiêu ngẫu nhiên
                 if(!attacker.zamasuPassiveCD || attacker.zamasuPassiveCD <= 0) {
                     const rndEnemy = enemies[Math.floor(Math.random() * enemies.length)];
                     if(Math.random() < 0.8) {
@@ -1371,6 +1771,17 @@ function battleLoop(currentTeam) {
                     }
                 } else {
                     attacker.zamasuPassiveCD--;
+                }
+            } else if (attacker.id === 'vegetassg') {
+                let targetMult = getMultiplier(attacker, target);
+                let dmg = calcDamage(attacker, target, attacker.atk * 0.88 * targetMult);
+                dmg = applyShieldFirst(dmg, target);
+                target.hp -= dmg;
+                attacker.en += 0.8;
+                showFloatingText(target.uid, `-${dmg}`, 'damage');
+                if(attacker.level >= 80 && Math.random() < 0.2) {
+                    target.buffs.push({type: 'stun', duration: 1});
+                    logBattle(`-> Làm choáng ${target.name}.`);
                 }
             }
         }
