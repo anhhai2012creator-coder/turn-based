@@ -86,19 +86,80 @@ function updateTopBarUI() {
 // 1. Sự kiện Giftcode
 function claimGiftcode() {
     const code = document.getElementById('giftcode-input').value.trim();
+
+    if(!gameData.claimedCodes) gameData.claimedCodes = [];
+
     if (code === 'CODETUAN001') {
-        if (gameData.giftcodeClaimed) {
+        if (gameData.claimedCodes.includes(code)) {
             alert('Mã này đã được sử dụng!');
         } else {
             gameData.resources.diamond += 400;
-            gameData.giftcodeClaimed = true;
+            gameData.claimedCodes.push(code);
             saveData();
             alert('Nhận thành công 400 Kim Cương!');
+        }
+    } else if (code === 'F.Hit' || code === 'NHANVATMOI') {
+        if (gameData.claimedCodes.includes(code)) {
+            alert('Mã này đã được sử dụng!');
+        } else {
+            gameData.resources.vntb += 3;
+            gameData.claimedCodes.push(code);
+            saveData();
+            alert('Nhận thành công 3 Viên Ngọc Thần Bí!');
         }
     } else {
         alert('Mã không hợp lệ!');
     }
     document.getElementById('giftcode-input').value = '';
+}
+
+// Sự kiện Flash Sale Logic
+let currentSalePercent = 0;
+function initEventScreen() {
+    // Random flash sale 5% - 88%
+    // Cơ chế: 30% tỉ lệ mở ra có sale
+    if(Math.random() < 0.3) {
+        currentSalePercent = Math.floor(Math.random() * (88 - 5 + 1)) + 5;
+        document.getElementById('flash-sale-banner').style.display = 'block';
+        document.getElementById('flash-sale-percent').innerText = currentSalePercent;
+    } else {
+        currentSalePercent = 0;
+        document.getElementById('flash-sale-banner').style.display = 'none';
+    }
+
+    const hitPrice = Math.floor(110000 * (1 - currentSalePercent/100));
+    const vpncPrice = Math.floor(500 * (1 - currentSalePercent/100));
+
+    document.getElementById('sale-hit-price').innerText = hitPrice.toLocaleString();
+    document.getElementById('sale-vpnc-price').innerText = vpncPrice.toLocaleString();
+}
+
+function buySaleHit() {
+    if(gameData.chars.find(c => c.id === 'hit')) {
+        alert("Bạn đã sở hữu F.Hit rồi!");
+        return;
+    }
+    const price = Math.floor(110000 * (1 - currentSalePercent/100));
+    if(gameData.resources.diamond < price) {
+        alert("Không đủ Kim Cương!");
+        return;
+    }
+    gameData.resources.diamond -= price;
+    gameData.chars.push({ id: 'hit', level: 1 });
+    saveData();
+    alert("Chúc mừng bạn đã nhận được nhân vật F.Hit!");
+}
+
+function buySaleVpnc() {
+    const price = Math.floor(500 * (1 - currentSalePercent/100));
+    if(gameData.resources.diamond < price) {
+        alert("Không đủ Kim Cương!");
+        return;
+    }
+    gameData.resources.diamond -= price;
+    gameData.resources.vpnc += 500;
+    saveData();
+    alert("Mua thành công 500 VPNC!");
 }
 
 // 2. Khu vui chơi - Điểm danh
@@ -220,6 +281,15 @@ const CHARACTERS = {
         baseSpd: 155,
         maxEn: 4.5,
         color: '#8e44ad'
+    },
+    'hit': {
+        name: 'F.Hit (SKL)',
+        baseHp: 2450000, // Theo yêu cầu, HP khá thấp so với các tướng cũ
+        baseAtk: 11550000,
+        baseDef: 5400,
+        baseSpd: 155,
+        maxEn: 7,
+        color: '#34495e'
     }
 };
 
@@ -495,9 +565,48 @@ function calcDamage(attacker, defender, rawDmg, isSkill = false) {
         rawDmg *= (1 + b.value);
     });
 
+    // F.Hit Passive 3: DMG Reduction
+    const hitDmgReductBuffs = defender.buffs.filter(b => b.type === 'hit_dmg_reduct');
+    let hitDmgReduct = 0;
+    hitDmgReductBuffs.forEach(b => { hitDmgReduct += b.value; });
+
     // Thủ = cứ 100 DEF giảm 0.1% ST
-    const dmgReduct = Math.min(0.9, (defender.def / 100) * 0.001);
-    return Math.max(1, Math.floor(rawDmg * (1 - dmgReduct)));
+    const defReduct = Math.min(0.9, (defender.def / 100) * 0.001);
+
+    // Áp dụng phòng thủ và giảm ST của F.Hit
+    const totalReduct = Math.min(0.95, defReduct + hitDmgReduct);
+    return Math.max(1, Math.floor(rawDmg * (1 - totalReduct)));
+}
+
+function updateFHitPassive3(allies) {
+    // Tìm các F.Hit trong đội để cấp aura giảm ST
+    const hits = allies.filter(a => a.id === 'hit' && !a.isDead);
+
+    // Tính tổng số stack (1 gốc + số lần ally chết/hit hồi sinh)
+    let totalStackCount = 0;
+    hits.forEach(hit => {
+        totalStackCount += (1 + (hit.deathCount || 0) + (hit.allyDeathCount || 0));
+    });
+
+    // Tối đa base là 0.05, mỗi lần thêm là 0.08
+    // Vì có thể có nhiều F.Hit (nếu địch cũng có), tính độc lập
+    // Nhưng logic áp dụng trên toàn đội, nên ta sẽ clear buff cũ và add buff mới
+
+    // Remove old hit_dmg_reduct (always remove first to clean up if F.Hit dies)
+    allies.forEach(a => {
+        a.buffs = a.buffs.filter(b => b.type !== 'hit_dmg_reduct');
+    });
+
+    if (totalStackCount > 0) {
+        // Add new
+        hits.forEach(hit => {
+            const base = 0.05;
+            const extra = ((hit.deathCount || 0) + (hit.allyDeathCount || 0)) * 0.08;
+            allies.forEach(a => {
+                a.buffs.push({type: 'hit_dmg_reduct', value: base + extra});
+            });
+        });
+    }
 }
 
 function battleLoop(currentTeam) {
@@ -535,20 +644,54 @@ function battleLoop(currentTeam) {
 
         const attacker = teamMembers[i];
 
+        const enemies = currentTeam === 'A' ? battleState.teams.B.filter(f => !f.isDead) : battleState.teams.A.filter(f => !f.isDead);
+        const allies = currentTeam === 'A' ? battleState.teams.A.filter(f => !f.isDead) : battleState.teams.B.filter(f => !f.isDead);
+
+        // Update Hit passive 3 for allies before action
+        updateFHitPassive3(allies);
+
+        // Áp dụng sát thương ĂN MÒN đầu lượt
+        const anMonBuffs = attacker.buffs.filter(b => b.type === 'an_mon');
+        if(anMonBuffs.length > 0) {
+            let totalAnMonDmg = 0;
+            anMonBuffs.forEach(b => {
+                totalAnMonDmg += b.value;
+            });
+            attacker.hp -= totalAnMonDmg;
+            showFloatingText(attacker.uid, `-${totalAnMonDmg}`, 'damage');
+            logBattle(`${attacker.name} chịu ${totalAnMonDmg} ST từ [ĂN MÒN]!`);
+            if(attacker.hp <= 0) {
+                attacker.hp = 0;
+                attacker.isDead = true;
+                handleDeath(attacker, allies); // Xử lý chết (hồi sinh nếu là Hit)
+                if(attacker.isDead) { // Nếu vẫn chết sau hồi sinh
+                    renderBattleArena();
+                    i++;
+                    battleState.timer = setTimeout(executeAction, 1000);
+                    return;
+                }
+            }
+        }
+
         // Cập nhật UI acting
         document.querySelectorAll('.battle-char').forEach(el => el.classList.remove('acting'));
         const attackerEl = document.getElementById(`char-${attacker.uid}`);
         if(attackerEl) attackerEl.classList.add('acting');
-
-        const enemies = currentTeam === 'A' ? battleState.teams.B.filter(f => !f.isDead) : battleState.teams.A.filter(f => !f.isDead);
-        const allies = currentTeam === 'A' ? battleState.teams.A.filter(f => !f.isDead) : battleState.teams.B.filter(f => !f.isDead);
 
         if (enemies.length === 0) {
              battleLoop(currentTeam); return; // Check lại win
         }
 
         // Logic xuất chiêu
-        let target = enemies[0]; // Mặc định đánh tướng đầu tiên (vị trí 1 của địch đang còn sống)
+        let target = enemies[0]; // Mặc định đánh tướng đầu tiên
+        // F.Hit Passive 2: Đòn đánh thường ưu tiên công kích kẻ địch có ATK cao nhất
+        if(attacker.id === 'hit' && attacker.en < attacker.maxEn) {
+            let maxAtkEnemy = enemies[0];
+            enemies.forEach(e => {
+                if(e.atk > maxAtkEnemy.atk) maxAtkEnemy = e;
+            });
+            target = maxAtkEnemy;
+        }
 
         // Giảm turn buff
         attacker.buffs.forEach(b => {
@@ -632,6 +775,26 @@ function battleLoop(currentTeam) {
                     showFloatingText(ally.uid, `+${finalHeal}`, 'heal');
                 });
                 logBattle(`-> Hồi máu toàn đội!`);
+            } else if (attacker.id === 'hit') {
+                // Hit (7en): Gây ST bằng 110% ATK toàn địch, áp dụng [ĂN MÒN]
+                let baseDmg = attacker.atk * 1.1;
+                logBattle(`-> ${attacker.name} tấn công toàn đội địch!`);
+                enemies.forEach(e => {
+                    let actualDmg = calcDamage(attacker, e, baseDmg);
+                    e.hp -= actualDmg;
+                    showFloatingText(e.uid, `-${actualDmg}`, 'damage');
+                    logBattle(`-> Gây ${actualDmg} ST lên ${e.name}.`);
+
+                    // Ăn mòn: 3% max HP mục tiêu, tối đa 23% ATK Hit
+                    let anMonDmg = Math.min(Math.floor(e.maxHp * 0.03), Math.floor(attacker.atk * 0.23));
+
+                    // Cộng dồn max 5 lần
+                    const currentAnMonCount = e.buffs.filter(b => b.type === 'an_mon').length;
+                    if(currentAnMonCount < 5) {
+                        e.buffs.push({type: 'an_mon', value: anMonDmg, duration: 4});
+                        logBattle(`-> Áp dụng 1 cộng dồn [ĂN MÒN] lên ${e.name} (${anMonDmg} ST/lượt).`);
+                    }
+                });
             }
 
             attacker.en = 0; // Reset EN
@@ -658,7 +821,6 @@ function battleLoop(currentTeam) {
                     e.hp -= actualDmg;
                     showFloatingText(e.uid, `-${actualDmg}`, 'damage');
                     logBattle(`-> Gây ${actualDmg} ST lên ${e.name}.`);
-                    if(e.hp <= 0) e.isDead = true;
                 });
                 attacker.en += 1.4;
                 // Mega Ner active passive (lv 150): +8% ST sau đánh thường
@@ -681,15 +843,31 @@ function battleLoop(currentTeam) {
                     lowestAlly.buffs.push({type: 'hp_mark'});
                     logBattle(`-> Tích 1 Dấu ấn HP cho ${lowestAlly.name}.`);
                 }
+            } else if (attacker.id === 'hit') {
+                let dmg = calcDamage(attacker, target, attacker.atk * 0.79);
+                target.hp -= dmg;
+                attacker.en += 1.8;
+                showFloatingText(target.uid, `-${dmg}`, 'damage');
+                logBattle(`<span style="color:${attacker.color}">${attacker.name}</span> đánh thường ${target.name} gây ${dmg} ST.`);
             }
         }
 
-        // Kiểm tra chết
-        if(target.hp <= 0) {
-            target.hp = 0;
-            target.isDead = true;
-            logBattle(`${target.name} đã bị hạ gục!`);
-        }
+        // Kiểm tra chết target & enemies (và allies nếu có phản sát thương)
+        [...enemies, ...allies].forEach(e => {
+            if(e.hp <= 0 && !e.isDead) {
+                e.hp = 0;
+                e.isDead = true;
+
+                // Cập nhật mảng team tương ứng
+                const isEnemyTeam = enemies.some(en => en.uid === e.uid);
+                const relevantTeam = isEnemyTeam ? enemies : allies;
+
+                handleDeath(e, relevantTeam);
+
+                // Force update F.Hit passive immediately after a death
+                updateFHitPassive3(relevantTeam);
+            }
+        });
 
         renderBattleArena();
 
@@ -700,6 +878,24 @@ function battleLoop(currentTeam) {
     executeAction();
 }
 
+function handleDeath(char, teamArray) {
+    if(char.id === 'hit' && !char.hasRevived) {
+        logBattle(`<b>${char.name} đã ngã xuống, nhưng nội tại kích hoạt! Hồi sinh với 80% HP!</b>`);
+        char.hasRevived = true;
+        char.isDead = false;
+        char.hp = Math.floor(char.maxHp * 0.8);
+        char.deathCount = (char.deathCount || 0) + 1; // Để kích buff 8% dmg_reduct
+    } else {
+        logBattle(`${char.name} đã bị hạ gục!`);
+        // Báo cho các F.Hit trong team biết có đồng đội chết để tăng buff giảm ST
+        const hits = teamArray.filter(a => a.id === 'hit' && !a.isDead);
+        hits.forEach(hit => {
+            hit.allyDeathCount = (hit.allyDeathCount || 0) + 1;
+            logBattle(`-> ${hit.name} tăng thêm 8% giảm sát thương cho toàn đội vì có đồng minh gục ngã!`);
+        });
+    }
+}
+
 // Override navTo to update Inventory/Daily when switching tabs
 const originalNavTo = navTo;
 navTo = function(screenId) {
@@ -707,6 +903,7 @@ navTo = function(screenId) {
     if(screenId === 'screen-inventory') renderInventory();
     if(screenId === 'screen-gacha') renderDailyReward();
     if(screenId === 'screen-roster') renderRoster();
+    if(screenId === 'screen-event') initEventScreen();
 };
 
 

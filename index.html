@@ -69,12 +69,43 @@
             <section id="screen-event" class="screen">
                 <h1 class="screen-title">SỰ KIỆN</h1>
                 <div class="event-container">
-                    <p class="coming-soon">Chúng tôi sẽ sớm cập nhật sự kiện thú vị!</p>
 
-                    <div class="giftcode-section">
-                        <!-- Nút hoặc input ẩn có thể gọi function -->
-                        <input type="text" id="giftcode-input" placeholder="Nhập mã...">
-                        <button onclick="claimGiftcode()">Nhận</button>
+                    <!-- Khối Sự kiện mới -->
+                    <div class="event-banner" style="background:#fff3e0; border:2px dashed #ff9800; padding:15px; margin-bottom:15px; border-radius:10px;">
+                        <h2 style="color:#e65100; margin-bottom:5px;">🥮 Chào mừng Trung Thu</h2>
+                        <p style="color:#d84315; font-weight:bold;">Đấu ải nhận thêm 30% EXP, 40% Kim cương</p>
+                    </div>
+
+                    <div class="event-banner" style="background:#e3f2fd; border:2px solid #2196f3; padding:15px; margin-bottom:15px; border-radius:10px;">
+                        <h2 style="color:#1565c0; margin-bottom:10px;">🛒 Đại Tiệc Săn Sale</h2>
+                        <p style="font-size:0.8em; margin-bottom:10px;">Kết thúc vào 1 tháng sau</p>
+                        <div id="flash-sale-banner" style="display:none; background:#ffeb3b; padding:5px; font-weight:bold; color:red; margin-bottom:10px; border-radius:5px; animation: pulse 1s infinite;">
+                            🔥 FLASH SALE: Đang giảm giá <span id="flash-sale-percent"></span>%!
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <div style="background:#fff; padding:10px; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <b>F.Hit & O.S DRA</b>
+                                    <p style="font-size:0.8em; color:#666;">(Chỉ nhận F.Hit do O.S DRA out of stock)</p>
+                                </div>
+                                <div>
+                                    <span style="text-decoration:line-through; font-size:0.8em; color:#999;">110,000 KC</span><br>
+                                    <button class="action-btn" id="btn-buy-hit" onclick="buySaleHit()" style="background:#e91e63; padding:5px 10px; font-size:0.9em;">Mua <span id="sale-hit-price">110000</span> KC</button>
+                                </div>
+                            </div>
+                            <div style="background:#fff; padding:10px; border-radius:5px; display:flex; justify-content:space-between; align-items:center;">
+                                <div><b>Gói 500 VPNC</b></div>
+                                <button class="action-btn" onclick="buySaleVpnc()" style="background:#e91e63; padding:5px 10px; font-size:0.9em;">Mua <span id="sale-vpnc-price">500</span> KC</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="giftcode-section" style="margin-top:20px;">
+                        <h3>Nhập Giftcode</h3>
+                        <div style="margin-top:10px;">
+                            <input type="text" id="giftcode-input" placeholder="Nhập mã...">
+                            <button onclick="claimGiftcode()">Nhận</button>
+                        </div>
                     </div>
                 </div>
             </section>
